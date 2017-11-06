@@ -120,6 +120,8 @@ optimizer = torch.optim.Adadelta(parameter, lr=args.lr, weight_decay=args.weight
 criterion = nn.CrossEntropyLoss()
 marginRankingLoss = nn.MarginRankingLoss(margin = 1, size_average = True)
 
+
+
 early_stop = False
 iterations = 0
 iters_not_improved = 0
@@ -189,7 +191,7 @@ def get_batch(question, answer, ext_feat, size):
 
 while True:
     if early_stop:
-        print("Early Stopping. Epoch: {}, Best Dev Loss: {}".format(epoch, best_dev_loss))
+        print("Early Stopping. Epoch: {}, Best Dev MAP: {}".format(epoch, best_dev_map))
         break
     epoch += 1
     train_iter.init_epoch()
@@ -373,8 +375,6 @@ while True:
                 dev_loss = criterion(scores, dev_batch.label)
                 dev_losses.append(dev_loss.data[0])
                 index_label = np.transpose(torch.max(scores, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
-                print(index_label)
-                print(index2label)
                 label_array = index2label[index_label]
                 # get the relevance scores
                 score_array = scores[:, 2].cpu().data.numpy()
@@ -383,7 +383,7 @@ while True:
                     instance.append((this_qid, predicted_label, score, gold_label))
 
 
-            dev_map, dev_mrr = evaluate(instance, config.dataset, 'valid', config.mode)
+            dev_map, dev_mrr = evaluate(instance, 'valid','trecqa', config.mode)
             print(dev_log_template.format(time.time() - start,
                                           epoch, iterations, 1 + batch_idx, len(train_iter),
                                           100. * (1 + batch_idx) / len(train_iter), loss.data[0],
@@ -401,10 +401,9 @@ while True:
                     early_stop = True
                     break
 
-        if iterations % args.log_every == 1:
-            # print progress message
-            print(log_template.format(time.time() - start,
-                                      epoch, iterations, 1 + batch_idx, len(train_iter),
-                                      100. * (1 + batch_idx) / len(train_iter), loss.data[0], ' ' * 8,
-                                      n_correct / n_total * 100, ' ' * 12))
+        # if iterations % args.log_every == 1:
+        #     # print progress message
+        #     print(log_template.format(time.time() - start,
+        #                               epoch, iterations, 1 + batch_idx, len(train_iter),
+        #                               100. * (1 + batch_idx) / len(train_iter), loss.data[0]))
             
