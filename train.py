@@ -108,9 +108,9 @@ else:
         print("Shift model to GPU")
 
 
-    pw_model = SmPlusPlus(model)
+    # pw_model = SmPlusPlus(model)
 
-parameter = filter(lambda p: p.requires_grad, pw_model.parameters())
+parameter = filter(lambda p: p.requires_grad, model.parameters())
 
 # the SM model originally follows SGD but Adadelta is used here
 optimizer = torch.optim.Adadelta(parameter, lr=args.lr, weight_decay=args.weight_decay, eps=1e-6)
@@ -203,7 +203,7 @@ while True:
         # if epoch != 1:
         iterations += 1
         loss_num = 0
-        pw_model.train()
+        model.train()
 
         # new_train = {"ext_feat": [], "question": [], "answer": [], "label": []}
         # features = pw_model.convModel(batch)
@@ -318,7 +318,7 @@ while True:
         #                       len(new_train_neg["answer"]))
 
         optimizer.zero_grad()
-        output = pw_model(batch)
+        output = model(batch)
 
         '''
         debug code
@@ -351,7 +351,7 @@ while True:
         # Evaluate performance on validation set
         if iterations % args.dev_every == 1 and epoch != 1:
             # switch model into evaluation mode
-            pw_model.eval()
+            model.eval()
             dev_iter.init_epoch()
             n_dev_correct = 0
             n_dev_total = 0
@@ -361,16 +361,16 @@ while True:
             '''
             debug code
             '''
-            if 'false_samples' in locals():
-                # output = pw_model([new_neg, new_pos])
-                # print(output[0].data.numpy()[0], output[1].data.numpy()[0])
-                print("false_samples:",end='    ')
-                false_samples_sorted = sorted(false_samples.items(), key=lambda t: t[1], reverse = True)
-                for k in range(min(4,len(false_samples))):
-                    print(false_samples_sorted[k][0], false_samples_sorted[k][1], end=" ")
-                print()
-                # if epoch >= 3:
-                #     print("qid:", index2qid[debug_qid], " near_list:", [index2aid[x] for x in near_list])
+            # if 'false_samples' in locals():
+            #     # output = pw_model([new_neg, new_pos])
+            #     # print(output[0].data.numpy()[0], output[1].data.numpy()[0])
+            #     print("false_samples:",end='    ')
+            #     false_samples_sorted = sorted(false_samples.items(), key=lambda t: t[1], reverse = True)
+            #     for k in range(min(4,len(false_samples))):
+            #         print(false_samples_sorted[k][0], false_samples_sorted[k][1], end=" ")
+            #     print()
+            #     # if epoch >= 3:
+            #     #     print("qid:", index2qid[debug_qid], " near_list:", [index2aid[x] for x in near_list])
 
             # print("============output:============")
             for dev_batch_idx, dev_batch in enumerate(dev_iter):
@@ -378,8 +378,8 @@ while True:
                 # dev singlely or in a batch? -> in a batch
                 but dev singlely is equal to dev_size = 1
                 '''
-                scores = pw_model.convModel(dev_batch)
-                scores = pw_model.linearLayer(scores)
+                # scores = pw_model.convModel(dev_batch)
+                # scores = pw_model.linearLayer(scores)
                 qid_array = index2qid[np.transpose(dev_batch.qid.cpu().data.numpy())]
                 score_array = scores.cpu().data.numpy().reshape(-1)
                 true_label_array = index2label[np.transpose(dev_batch.label.cpu().data.numpy())]
@@ -396,7 +396,7 @@ while True:
                                           loss_num, acc / tot, dev_map, dev_mrr))
             if best_dev_mrr < dev_mrr:
                 snapshot_path = os.path.join(args.save_path, args.dataset, args.mode + '_best_model.pt')
-                torch.save(pw_model, snapshot_path)
+                # torch.save(pw_model, snapshot_path)
                 iters_not_improved = 0
                 best_dev_mrr = dev_mrr
             else:
