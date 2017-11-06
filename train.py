@@ -313,9 +313,9 @@ while True:
         #                                                (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
 
         pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
-                              batch.batch_size)
+                              len(new_train_pos["answer"]))
         neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
-                              batch.batch_size)
+                              len(new_train_neg["answer"]))
 
         optimizer.zero_grad()
         output = pw_model([pos_batch, neg_batch])
