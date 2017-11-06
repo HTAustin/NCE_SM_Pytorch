@@ -108,7 +108,7 @@ else:
         print("Shift model to GPU")
 
 
-    pw_model = PairwiseConv(model)
+    pw_model = SmPlusPlus(model)
 
 parameter = filter(lambda p: p.requires_grad, pw_model.parameters())
 
@@ -200,40 +200,40 @@ while True:
     acc = 0
     tot = 0
     for batch_idx, batch in enumerate(iter(train_iter)):
-        if epoch != 1:
-            iterations += 1
+        # if epoch != 1:
+        iterations += 1
         loss_num = 0
         pw_model.train()
 
-        new_train = {"ext_feat": [], "question": [], "answer": [], "label": []}
-        features = pw_model.convModel(batch)
-        new_train_pos = {"answer": [], "question": [], "ext_feat": []}
-        new_train_neg = {"answer": [], "question": [], "ext_feat": []}
-        max_len_q = 0
-        max_len_a = 0
+        # new_train = {"ext_feat": [], "question": [], "answer": [], "label": []}
+        # features = pw_model.convModel(batch)
+        # new_train_pos = {"answer": [], "question": [], "ext_feat": []}
+        # new_train_neg = {"answer": [], "question": [], "ext_feat": []}
+        # max_len_q = 0
+        # max_len_a = 0
 
-        batch_near_list = []
-        batch_qid = []
-        batch_aid = []
-        for i in range(batch.batch_size):
-            label_i = batch.label[i].cpu().data.numpy()[0]
-            question_i = batch.question[i]
-            # question_i = question_i[question_i!=1] # remove padding 1 <pad>
-            answer_i = batch.answer[i]
-            # answer_i = answer_i[answer_i!=1] # remove padding 1 <pad>
-            ext_feat_i = batch.ext_feat[i]
-            qid_i = batch.qid[i].data.cpu().numpy()[0]
-            aid_i = batch.aid[i].data.cpu().numpy()[0]
+        # batch_near_list = []
+        # batch_qid = []
+        # batch_aid = []
+        # for i in range(batch.batch_size):
+        #     label_i = batch.label[i].cpu().data.numpy()[0]
+        #     question_i = batch.question[i]
+        #     # question_i = question_i[question_i!=1] # remove padding 1 <pad>
+        #     answer_i = batch.answer[i]
+        #     # answer_i = answer_i[answer_i!=1] # remove padding 1 <pad>
+        #     ext_feat_i = batch.ext_feat[i]
+        #     qid_i = batch.qid[i].data.cpu().numpy()[0]
+        #     aid_i = batch.aid[i].data.cpu().numpy()[0]
 
 
-            if label_i == 2:
-                new_train_pos["answer"].append(answer_i)
-                new_train_pos["question"].append(question_i)
-                new_train_pos["ext_feat"].append(ext_feat_i)
-            else:
-                new_train_neg["answer"].append(answer_i)
-                new_train_neg["question"].append(question_i)
-                new_train_neg["ext_feat"].append(ext_feat_i)
+        #     if label_i == 2:
+        #         new_train_pos["answer"].append(answer_i)
+        #         new_train_pos["question"].append(question_i)
+        #         new_train_pos["ext_feat"].append(ext_feat_i)
+        #     else:
+        #         new_train_neg["answer"].append(answer_i)
+        #         new_train_neg["question"].append(question_i)
+        #         new_train_neg["ext_feat"].append(ext_feat_i)
 
         #     if qid_i not in question2answer:
         #         question2answer[qid_i] = {"question": question_i, "pos": {}, "neg": {}}
@@ -312,13 +312,13 @@ while True:
         #             new_train_neg["question"][j] = F.pad(new_train_neg["question"][j],
         #                                                (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
 
-        pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
-                              len(new_train_pos["answer"]))
-        neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
-                              len(new_train_neg["answer"]))
+        # pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
+        #                       len(new_train_pos["answer"]))
+        # neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
+        #                       len(new_train_neg["answer"]))
 
         optimizer.zero_grad()
-        output = pw_model([pos_batch, neg_batch])
+        output = pw_model(batch)
 
         '''
         debug code
