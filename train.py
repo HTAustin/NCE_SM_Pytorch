@@ -319,6 +319,8 @@ while True:
 
         optimizer.zero_grad()
         scores = model(batch)
+        n_correct += (torch.max(scores, 1)[1].view(batch.label.size()).data == batch.label.data).sum()
+        n_total += batch.batch_si
 
         '''
         debug code
@@ -350,67 +352,52 @@ while True:
         optimizer.step()
 
         # Evaluate performance on validation set
-        if iterations % args.dev_every == 1 and epoch != 1:
+        if iterations % args.dev_every == 1:
             # switch model into evaluation mode
             model.eval()
             dev_iter.init_epoch()
             n_dev_correct = 0
-            n_dev_total = 0
             dev_losses = []
             instance = []
-
-            '''
-            debug code
-            '''
-            # if 'false_samples' in locals():
-            #     # output = pw_model([new_neg, new_pos])
-            #     # print(output[0].data.numpy()[0], output[1].data.numpy()[0])
-            #     print("false_samples:",end='    ')
-            #     false_samples_sorted = sorted(false_samples.items(), key=lambda t: t[1], reverse = True)
-            #     for k in range(min(4,len(false_samples))):
-            #         print(false_samples_sorted[k][0], false_samples_sorted[k][1], end=" ")
-            #     print()
-            #     # if epoch >= 3:
-            #     #     print("qid:", index2qid[debug_qid], " near_list:", [index2aid[x] for x in near_list])
-
-            # print("============output:============")
             for dev_batch_idx, dev_batch in enumerate(dev_iter):
-                '''
-                # dev singlely or in a batch? -> in a batch
-                but dev singlely is equal to dev_size = 1
-                '''
-                # scores = pw_model.convModel(dev_batch)
-                # scores = pw_model.linearLayer(scores)
                 qid_array = index2qid[np.transpose(dev_batch.qid.cpu().data.numpy())]
-                score_array = scores.cpu().data.numpy().reshape(-1)
                 true_label_array = index2label[np.transpose(dev_batch.label.cpu().data.numpy())]
+
+                scores = model(dev_batch)
+                n_dev_correct += (torch.max(scores, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
+                dev_loss = criterion(scores, dev_batch.label)
+                dev_losses.append(dev_loss.data[0])
+                index_label = np.transpose(torch.max(scores, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
+                label_array = index2label[index_label]
+                # get the relevance scores
+                score_array = scores[:, 2].cpu().data.numpy()
                 for i in range(dev_batch.batch_size):
-                    this_qid, score, gold_label = qid_array[i], score_array[i], true_label_array[i]
-                    instance.append((this_qid, score, gold_label))
+                    this_qid, predicted_label, score, gold_label = qid_array[i], label_array[i], score_array[i], true_label_array[i]
+                    instance.append((this_qid, predicted_label, score, gold_label))
 
-            test_mode = "dev"
-            dev_map, dev_mrr = evaluate(instance, test_mode, config.mode)
 
+            dev_map, dev_mrr = evaluate(instance, config.dataset, 'valid', config.mode)
             print(dev_log_template.format(time.time() - start,
                                           epoch, iterations, 1 + batch_idx, len(train_iter),
-                                          100. * (1 + batch_idx) / len(train_iter),
-                                          loss_num, acc / tot, dev_map, dev_mrr))
-            if best_dev_mrr < dev_mrr:
-                snapshot_path = os.path.join(args.save_path, args.dataset, args.mode + '_best_model.pt')
-                # torch.save(pw_model, snapshot_path)
+                                          100. * (1 + batch_idx) / len(train_iter), loss.data[0],
+                                          sum(dev_losses) / len(dev_losses), train_acc, dev_map))
+
+            # Update validation results
+            if dev_map > best_dev_map:
                 iters_not_improved = 0
-                best_dev_mrr = dev_mrr
+                best_dev_map = dev_map
+                snapshot_path = os.path.join(args.save_path, args.dataset, args.mode+'_best_model.pt')
+                torch.save(model, snapshot_path)
             else:
                 iters_not_improved += 1
                 if iters_not_improved >= args.patience:
                     early_stop = True
                     break
 
-        if iterations % args.log_every == 1 and epoch != 1:
+        if iterations % args.log_every == 1:
             # print progress message
             print(log_template.format(time.time() - start,
                                       epoch, iterations, 1 + batch_idx, len(train_iter),
-                                      100. * (1 + batch_idx) / len(train_iter),
-                                     loss_num,  acc / tot))
-            acc = 0
-            tot = 0
+                                      100. * (1 + batch_idx) / len(train_iter), loss.data[0], ' ' * 8,
+                                      n_correct / n_total * 100, ' ' * 12))
+            
