@@ -225,118 +225,128 @@ while True:
             qid_i = batch.qid[i].data.cpu().numpy()[0]
             aid_i = batch.aid[i].data.cpu().numpy()[0]
 
-            if qid_i not in question2answer:
-                question2answer[qid_i] = {"question": question_i, "pos": {}, "neg": {}}
-            '''
-            # in the dataset, "1" is positive, "0" is negative
-            # in the code (after indexed by torchtext), 2 is positive and 1 is negative  
-            '''
+
             if label_i == 2:
+                new_train_pos["answer"].append(answer_i)
+                new_train_pos["question"].append(question_i)
+                new_train_pos["ext_feat"].append(ext_feat_i)
+            else:
+                new_train_neg["answer"].append(answer_i)
+                new_train_neg["question"].append(question_i)
+                new_train_neg["ext_feat"].append(ext_feat_i)
 
-                if aid_i not in question2answer[qid_i]["pos"]:
-                    question2answer[qid_i]["pos"][aid_i] = {}
+        #     if qid_i not in question2answer:
+        #         question2answer[qid_i] = {"question": question_i, "pos": {}, "neg": {}}
+        #     '''
+        #     # in the dataset, "1" is positive, "0" is negative
+        #     # in the code (after indexed by torchtext), 2 is positive and 1 is negative  
+        #     '''
+        #     if label_i == 2:
 
-                question2answer[qid_i]["pos"][aid_i]["answer"] = answer_i
-                question2answer[qid_i]["pos"][aid_i]["ext_feat"] = ext_feat_i
+        #         if aid_i not in question2answer[qid_i]["pos"]:
+        #             question2answer[qid_i]["pos"][aid_i] = {}
 
-                # get neg samples in the first epoch but do not train
-                if epoch == 1:
-                    continue
-                # random generate sample in the first training epoch
-                # elif epoch == 2:
-                #     near_list = get_random_neg_id(q2neg, qid_i, k=args.neg_num)
-                # else:
-                #     debug_qid = qid_i
-                #     near_list = get_nearest_neg_id(features[i], question2answer[qid_i]["neg"], distance="l2", k=args.neg_num)
+        #         question2answer[qid_i]["pos"][aid_i]["answer"] = answer_i
+        #         question2answer[qid_i]["pos"][aid_i]["ext_feat"] = ext_feat_i
 
-                batch_near_list.extend(near_list)
+        #         # get neg samples in the first epoch but do not train
+        #         if epoch == 1:
+        #             continue
+        #         # random generate sample in the first training epoch
+        #         elif epoch == 2:
+        #             near_list = get_random_neg_id(q2neg, qid_i, k=args.neg_num)
+        #         else:
+        #             debug_qid = qid_i
+        #             near_list = get_nearest_neg_id(features[i], question2answer[qid_i]["neg"], distance="l2", k=args.neg_num)
 
-                neg_size = len(near_list)
-                if neg_size != 0:
-                    answer_i = answer_i[answer_i != 1] # remove padding 1 <pad>
-                    question_i = question_i[question_i != 1] # remove padding 1 <pad>
-                    for near_id in near_list:
-                        batch_qid.append(qid_i)
-                        batch_aid.append(aid_i)
+        #         batch_near_list.extend(near_list)
 
-                        new_train_pos["answer"].append(answer_i)
-                        new_train_pos["question"].append(question_i)
-                        new_train_pos["ext_feat"].append(ext_feat_i)
+        #         neg_size = len(near_list)
+        #         if neg_size != 0:
+        #             answer_i = answer_i[answer_i != 1] # remove padding 1 <pad>
+        #             question_i = question_i[question_i != 1] # remove padding 1 <pad>
+        #             for near_id in near_list:
+        #                 batch_qid.append(qid_i)
+        #                 batch_aid.append(aid_i)
 
-                        near_answer = question2answer[qid_i]["neg"][near_id]["answer"]
-                        if near_answer.size()[0] > max_len_q:
-                            max_len_q = question_i.size()[0]
-                        if near_answer.size()[0] > max_len_a:
-                            max_len_a = near_answer.size()[0]
-                        ext_feat_neg = question2answer[qid_i]["neg"][near_id]["ext_feat"]
-                        new_train_neg["answer"].append(near_answer)
-                        new_train_neg["question"].append(question_i)
-                        new_train_neg["ext_feat"].append(ext_feat_neg)
+        #                 new_train_pos["answer"].append(answer_i)
+        #                 new_train_pos["question"].append(question_i)
+        #                 new_train_pos["ext_feat"].append(ext_feat_i)
 
-            elif label_i == 1:
+        #                 near_answer = question2answer[qid_i]["neg"][near_id]["answer"]
+        #                 if near_answer.size()[0] > max_len_q:
+        #                     max_len_q = question_i.size()[0]
+        #                 if near_answer.size()[0] > max_len_a:
+        #                     max_len_a = near_answer.size()[0]
+        #                 ext_feat_neg = question2answer[qid_i]["neg"][near_id]["ext_feat"]
+        #                 new_train_neg["answer"].append(near_answer)
+        #                 new_train_neg["question"].append(question_i)
+        #                 new_train_neg["ext_feat"].append(ext_feat_neg)
 
-                if aid_i not in question2answer[qid_i]["neg"]:
-                    answer_i = answer_i[answer_i != 1]
-                    question2answer[qid_i]["neg"][aid_i] = {"answer": answer_i}
+        #     elif label_i == 1:
 
-                question2answer[qid_i]["neg"][aid_i]["feature"] = features[i].data.cpu().numpy()
-                question2answer[qid_i]["neg"][aid_i]["ext_feat"] = ext_feat_i
+        #         if aid_i not in question2answer[qid_i]["neg"]:
+        #             answer_i = answer_i[answer_i != 1]
+        #             question2answer[qid_i]["neg"][aid_i] = {"answer": answer_i}
 
-                if epoch == 1:
-                    if qid_i not in q2neg:
-                        q2neg[qid_i] = []
+        #         question2answer[qid_i]["neg"][aid_i]["feature"] = features[i].data.cpu().numpy()
+        #         question2answer[qid_i]["neg"][aid_i]["ext_feat"] = ext_feat_i
 
-                    q2neg[qid_i].append(aid_i)
+        #         if epoch == 1:
+        #             if qid_i not in q2neg:
+        #                 q2neg[qid_i] = []
 
-        # pack the selected pos and neg samples into the torchtext batch and train
-        if epoch != 1:
-            true_batch_size = len(new_train_neg["answer"])
-            if true_batch_size != 0:
-                for j in range(true_batch_size):
-                    new_train_neg["answer"][j] = F.pad(new_train_neg["answer"][j],
-                                                       (0, max_len_a - new_train_neg["answer"][j].size()[0]), value=1)
-                    new_train_pos["answer"][j] = F.pad(new_train_pos["answer"][j],
-                                                       (0, max_len_a - new_train_pos["answer"][j].size()[0]), value=1)
-                    new_train_pos["question"][j] = F.pad(new_train_pos["question"][j],
-                                                       (0, max_len_q - new_train_pos["question"][j].size()[0]), value=1)
-                    new_train_neg["question"][j] = F.pad(new_train_neg["question"][j],
-                                                       (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
+        #             q2neg[qid_i].append(aid_i)
 
-                pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
-                                      true_batch_size)
-                neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
-                                      true_batch_size)
+        # # pack the selected pos and neg samples into the torchtext batch and train
+        # if epoch != 1:
+        #     true_batch_size = len(new_train_neg["answer"])
+        #     if true_batch_size != 0:
+        #         for j in range(true_batch_size):
+        #             new_train_neg["answer"][j] = F.pad(new_train_neg["answer"][j],
+        #                                                (0, max_len_a - new_train_neg["answer"][j].size()[0]), value=1)
+        #             new_train_pos["answer"][j] = F.pad(new_train_pos["answer"][j],
+        #                                                (0, max_len_a - new_train_pos["answer"][j].size()[0]), value=1)
+        #             new_train_pos["question"][j] = F.pad(new_train_pos["question"][j],
+        #                                                (0, max_len_q - new_train_pos["question"][j].size()[0]), value=1)
+        #             new_train_neg["question"][j] = F.pad(new_train_neg["question"][j],
+        #                                                (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
 
-                optimizer.zero_grad()
-                output = pw_model([pos_batch, neg_batch])
+            pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
+                                  true_batch_size)
+            neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
+                                  true_batch_size)
 
-                '''
-                debug code
-                '''
-                cmp = output[:, 0] <= output[:, 1]
-                cmp = np.array(cmp.data.cpu().numpy(), dtype=bool)
-                batch_near_list = np.array(batch_near_list)
-                batch_aid = np.array(batch_aid)
-                batch_qid = np.array(batch_qid)
-                qlist = batch_qid[cmp]
-                alist = batch_aid[cmp]
-                nlist = batch_near_list[cmp]
-                for k in range(len(batch_qid[cmp])):
-                    pair = (index2qid[qlist[k]], index2aid[alist[k]], index2aid[nlist[k]])
-                    if pair in false_samples:
-                        false_samples[pair] += 1
-                    else:
-                        false_samples[pair] = 1
+            optimizer.zero_grad()
+            output = pw_model([pos_batch, neg_batch])
 
-                cmp = output[:, 0] > output[:, 1]
-                acc += sum(cmp.data.cpu().numpy())
-                tot += true_batch_size
+            '''
+            debug code
+            '''
+            cmp = output[:, 0] <= output[:, 1]
+            cmp = np.array(cmp.data.cpu().numpy(), dtype=bool)
+            batch_near_list = np.array(batch_near_list)
+            batch_aid = np.array(batch_aid)
+            batch_qid = np.array(batch_qid)
+            qlist = batch_qid[cmp]
+            alist = batch_aid[cmp]
+            nlist = batch_near_list[cmp]
+            for k in range(len(batch_qid[cmp])):
+                pair = (index2qid[qlist[k]], index2aid[alist[k]], index2aid[nlist[k]])
+                if pair in false_samples:
+                    false_samples[pair] += 1
+                else:
+                    false_samples[pair] = 1
+
+            cmp = output[:, 0] > output[:, 1]
+            acc += sum(cmp.data.cpu().numpy())
+            tot += true_batch_size
 
 
-                loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
-                loss_num = loss.data.numpy()[0]
-                loss.backward()
-                optimizer.step()
+            loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
+            loss_num = loss.data.numpy()[0]
+            loss.backward()
+            optimizer.step()
 
         # Evaluate performance on validation set
         if iterations % args.dev_every == 1 and epoch != 1:
