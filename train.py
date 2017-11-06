@@ -193,6 +193,10 @@ while True:
         break
     epoch += 1
     train_iter.init_epoch()
+    
+    n_correct, n_total = 0, 0
+
+
     '''
     batch size issue: padding is a choice (add or delete them in both train and test)
                     associated with the batch size. Currently, it seems to affect the result a lot.
