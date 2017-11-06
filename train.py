@@ -117,7 +117,7 @@ optimizer = torch.optim.Adadelta(parameter, lr=args.lr, weight_decay=args.weight
 # A good lr is required to use Adam
 # optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay, eps=1e-8)
 
-
+criterion = nn.CrossEntropyLoss()
 marginRankingLoss = nn.MarginRankingLoss(margin = 1, size_average = True)
 
 early_stop = False
