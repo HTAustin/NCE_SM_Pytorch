@@ -312,41 +312,41 @@ while True:
         #             new_train_neg["question"][j] = F.pad(new_train_neg["question"][j],
         #                                                (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
 
-            pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
-                                  true_batch_size)
-            neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
-                                  true_batch_size)
+        pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
+                              batch.batch_size)
+        neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
+                              batch.batch_size)
 
-            optimizer.zero_grad()
-            output = pw_model([pos_batch, neg_batch])
+        optimizer.zero_grad()
+        output = pw_model([pos_batch, neg_batch])
 
-            '''
-            debug code
-            '''
-            cmp = output[:, 0] <= output[:, 1]
-            cmp = np.array(cmp.data.cpu().numpy(), dtype=bool)
-            batch_near_list = np.array(batch_near_list)
-            batch_aid = np.array(batch_aid)
-            batch_qid = np.array(batch_qid)
-            qlist = batch_qid[cmp]
-            alist = batch_aid[cmp]
-            nlist = batch_near_list[cmp]
-            for k in range(len(batch_qid[cmp])):
-                pair = (index2qid[qlist[k]], index2aid[alist[k]], index2aid[nlist[k]])
-                if pair in false_samples:
-                    false_samples[pair] += 1
-                else:
-                    false_samples[pair] = 1
+        '''
+        debug code
+        '''
+        cmp = output[:, 0] <= output[:, 1]
+        cmp = np.array(cmp.data.cpu().numpy(), dtype=bool)
+        batch_near_list = np.array(batch_near_list)
+        batch_aid = np.array(batch_aid)
+        batch_qid = np.array(batch_qid)
+        qlist = batch_qid[cmp]
+        alist = batch_aid[cmp]
+        nlist = batch_near_list[cmp]
+        for k in range(len(batch_qid[cmp])):
+            pair = (index2qid[qlist[k]], index2aid[alist[k]], index2aid[nlist[k]])
+            if pair in false_samples:
+                false_samples[pair] += 1
+            else:
+                false_samples[pair] = 1
 
-            cmp = output[:, 0] > output[:, 1]
-            acc += sum(cmp.data.cpu().numpy())
-            tot += true_batch_size
+        cmp = output[:, 0] > output[:, 1]
+        acc += sum(cmp.data.cpu().numpy())
+        tot += true_batch_size
 
 
-            loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
-            loss_num = loss.data.numpy()[0]
-            loss.backward()
-            optimizer.step()
+        loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
+        loss_num = loss.data.numpy()[0]
+        loss.backward()
+        optimizer.step()
 
         # Evaluate performance on validation set
         if iterations % args.dev_every == 1 and epoch != 1:
