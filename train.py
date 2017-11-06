@@ -318,7 +318,7 @@ while True:
         #                       len(new_train_neg["answer"]))
 
         optimizer.zero_grad()
-        output = model(batch)
+        scores = model(batch)
 
         '''
         debug code
