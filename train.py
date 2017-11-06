@@ -243,11 +243,11 @@ while True:
                 if epoch == 1:
                     continue
                 # random generate sample in the first training epoch
-                elif epoch == 2:
-                    near_list = get_random_neg_id(q2neg, qid_i, k=args.neg_num)
-                else:
-                    debug_qid = qid_i
-                    near_list = get_nearest_neg_id(features[i], question2answer[qid_i]["neg"], distance="l2", k=args.neg_num)
+                # elif epoch == 2:
+                #     near_list = get_random_neg_id(q2neg, qid_i, k=args.neg_num)
+                # else:
+                #     debug_qid = qid_i
+                #     near_list = get_nearest_neg_id(features[i], question2answer[qid_i]["neg"], distance="l2", k=args.neg_num)
 
                 batch_near_list.extend(near_list)
 
