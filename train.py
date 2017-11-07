@@ -73,7 +73,7 @@ QUESTION = set_vectors(QUESTION, args.vector_cache)
 ANSWER = set_vectors(ANSWER, args.vector_cache)
 
 train_iter = data.Iterator(train, batch_size=args.batch_size, device=args.gpu, train=True, repeat=False,
-                           sort=False, shuffle=True)
+                           sort=False, shuffle=False)
 dev_iter = data.Iterator(dev, batch_size=args.batch_size, device=args.gpu, train=False, repeat=False,
                          sort=False,    shuffle=False)
 test_iter = data.Iterator(test, batch_size=args.batch_size, device=args.gpu, train=False, repeat=False,
@@ -117,7 +117,7 @@ optimizer = torch.optim.Adadelta(parameter, lr=args.lr, weight_decay=args.weight
 # A good lr is required to use Adam
 # optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay, eps=1e-8)
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([0,0.875,0.125]))
 marginRankingLoss = nn.MarginRankingLoss(margin = 1, size_average = True)
 
 
@@ -189,11 +189,45 @@ def get_batch(question, answer, ext_feat, size):
     setattr(new_batch, "ext_feat", torch.stack(ext_feat))
     return new_batch
 
+
+def get_qid_batch(qid, qid_questions_dict, qid_anwers_dict, qid_ext_feat_dict, qid_label_dict):
+    new_batch = data.Batch()
+    question = qid_questions_dict[qid]
+    answers = qid_anwers_dict[qid]
+    labels = qid_label_dict[qid]
+    ext_feats = qid_ext_feat_dict[qid]
+
+
+
+    size = len(qid_anwers_dict[qid])
+    new_batch.batch_size = size
+    new_batch.dataset = "trecqa"
+
+    
+    max_len_a = max([ans.size()[0] for ans in answers])
+
+    padding_answers = []
+
+    for ans in answers:
+        padding_answers.append(F.pad(ans,(0, max_len_a - ans.size()[0]), value=1))
+
+    setattr(new_batch, "answer", torch.stack(padding_answers))
+    setattr(new_batch, "question", torch.stack(question.repeat(size,1)))
+    setattr(new_batch, "ext_feat", torch.stack(ext_feats))
+    setattr(new_batch, "label", torch.stack(labels))
+    return new_batch
+
+qid_correct_ans_dict = {}
+qid_questions_dict = {}
+qid_anwers_dict = {}
+qid_ext_feat_dict = {}
+qid_label_dict = {}
+
 while True:
     if early_stop:
         print("Early Stopping. Epoch: {}, Best Dev MAP: {}".format(epoch, best_dev_map))
         break
-    epoch += 1
+    
     train_iter.init_epoch()
     
     n_correct, n_total = 0, 0
@@ -205,205 +239,105 @@ while True:
     '''
     acc = 0
     tot = 0
-    for batch_idx, batch in enumerate(iter(train_iter)):
-        # if epoch != 1:
-        iterations += 1
-        loss_num = 0
-        model.train()
-
-        # new_train = {"ext_feat": [], "question": [], "answer": [], "label": []}
-        # features = pw_model.convModel(batch)
-        # new_train_pos = {"answer": [], "question": [], "ext_feat": []}
-        # new_train_neg = {"answer": [], "question": [], "ext_feat": []}
-        # max_len_q = 0
-        # max_len_a = 0
-
-        # batch_near_list = []
-        # batch_qid = []
-        # batch_aid = []
-        # for i in range(batch.batch_size):
-        #     label_i = batch.label[i].cpu().data.numpy()[0]
-        #     question_i = batch.question[i]
-        #     # question_i = question_i[question_i!=1] # remove padding 1 <pad>
-        #     answer_i = batch.answer[i]
-        #     # answer_i = answer_i[answer_i!=1] # remove padding 1 <pad>
-        #     ext_feat_i = batch.ext_feat[i]
-        #     qid_i = batch.qid[i].data.cpu().numpy()[0]
-        #     aid_i = batch.aid[i].data.cpu().numpy()[0]
 
 
-        #     if label_i == 2:
-        #         new_train_pos["answer"].append(answer_i)
-        #         new_train_pos["question"].append(question_i)
-        #         new_train_pos["ext_feat"].append(ext_feat_i)
-        #     else:
-        #         new_train_neg["answer"].append(answer_i)
-        #         new_train_neg["question"].append(question_i)
-        #         new_train_neg["ext_feat"].append(ext_feat_i)
+    if epoch == 0:
+        for batch_idx, batch in enumerate(iter(train_iter)):
+            for i in range(batch.batch_size):
+                label_i = batch.label[i].cpu().data.numpy()[0]
+                question_i = batch.question[i]
+                # question_i = question_i[question_i!=1] # remove padding 1 <pad>
+                answer_i = batch.answer[i]
+                # answer_i = answer_i[answer_i!=1] # remove padding 1 <pad>
+                ext_feat_i = batch.ext_feat[i]
+                qid_i = batch.qid[i].data.cpu().numpy()[0]
+                aid_i = batch.aid[i].data.cpu().numpy()[0]
 
-        #     if qid_i not in question2answer:
-        #         question2answer[qid_i] = {"question": question_i, "pos": {}, "neg": {}}
-        #     '''
-        #     # in the dataset, "1" is positive, "0" is negative
-        #     # in the code (after indexed by torchtext), 2 is positive and 1 is negative  
-        #     '''
-        #     if label_i == 2:
+                qid_questions_dict[qid_i] = question_i
 
-        #         if aid_i not in question2answer[qid_i]["pos"]:
-        #             question2answer[qid_i]["pos"][aid_i] = {}
+                if qid_i not in qid_anwers_dict:
+                    qid_anwers_dict[qid_i] = []
+                qid_anwers_dict[qid_i].append(answer_i)
 
-        #         question2answer[qid_i]["pos"][aid_i]["answer"] = answer_i
-        #         question2answer[qid_i]["pos"][aid_i]["ext_feat"] = ext_feat_i
+                if qid_i not in qid_ext_feat_dict:
+                    qid_ext_feat_dict[qid_i] = []
+                qid_ext_feat_dict[qid_i].append(ext_feat_i)
 
-        #         # get neg samples in the first epoch but do not train
-        #         if epoch == 1:
-        #             continue
-        #         # random generate sample in the first training epoch
-        #         elif epoch == 2:
-        #             near_list = get_random_neg_id(q2neg, qid_i, k=args.neg_num)
-        #         else:
-        #             debug_qid = qid_i
-        #             near_list = get_nearest_neg_id(features[i], question2answer[qid_i]["neg"], distance="l2", k=args.neg_num)
-
-        #         batch_near_list.extend(near_list)
-
-        #         neg_size = len(near_list)
-        #         if neg_size != 0:
-        #             answer_i = answer_i[answer_i != 1] # remove padding 1 <pad>
-        #             question_i = question_i[question_i != 1] # remove padding 1 <pad>
-        #             for near_id in near_list:
-        #                 batch_qid.append(qid_i)
-        #                 batch_aid.append(aid_i)
-
-        #                 new_train_pos["answer"].append(answer_i)
-        #                 new_train_pos["question"].append(question_i)
-        #                 new_train_pos["ext_feat"].append(ext_feat_i)
-
-        #                 near_answer = question2answer[qid_i]["neg"][near_id]["answer"]
-        #                 if near_answer.size()[0] > max_len_q:
-        #                     max_len_q = question_i.size()[0]
-        #                 if near_answer.size()[0] > max_len_a:
-        #                     max_len_a = near_answer.size()[0]
-        #                 ext_feat_neg = question2answer[qid_i]["neg"][near_id]["ext_feat"]
-        #                 new_train_neg["answer"].append(near_answer)
-        #                 new_train_neg["question"].append(question_i)
-        #                 new_train_neg["ext_feat"].append(ext_feat_neg)
-
-        #     elif label_i == 1:
-
-        #         if aid_i not in question2answer[qid_i]["neg"]:
-        #             answer_i = answer_i[answer_i != 1]
-        #             question2answer[qid_i]["neg"][aid_i] = {"answer": answer_i}
-
-        #         question2answer[qid_i]["neg"][aid_i]["feature"] = features[i].data.cpu().numpy()
-        #         question2answer[qid_i]["neg"][aid_i]["ext_feat"] = ext_feat_i
-
-        #         if epoch == 1:
-        #             if qid_i not in q2neg:
-        #                 q2neg[qid_i] = []
-
-        #             q2neg[qid_i].append(aid_i)
-
-        # # pack the selected pos and neg samples into the torchtext batch and train
-        # if epoch != 1:
-        #     true_batch_size = len(new_train_neg["answer"])
-        #     if true_batch_size != 0:
-        #         for j in range(true_batch_size):
-        #             new_train_neg["answer"][j] = F.pad(new_train_neg["answer"][j],
-        #                                                (0, max_len_a - new_train_neg["answer"][j].size()[0]), value=1)
-        #             new_train_pos["answer"][j] = F.pad(new_train_pos["answer"][j],
-        #                                                (0, max_len_a - new_train_pos["answer"][j].size()[0]), value=1)
-        #             new_train_pos["question"][j] = F.pad(new_train_pos["question"][j],
-        #                                                (0, max_len_q - new_train_pos["question"][j].size()[0]), value=1)
-        #             new_train_neg["question"][j] = F.pad(new_train_neg["question"][j],
-        #                                                (0, max_len_q - new_train_neg["question"][j].size()[0]), value=1)
-
-        # pos_batch = get_batch(new_train_pos["question"], new_train_pos["answer"], new_train_pos["ext_feat"],
-        #                       len(new_train_pos["answer"]))
-        # neg_batch = get_batch(new_train_neg["question"], new_train_neg["answer"], new_train_neg["ext_feat"],
-        #                       len(new_train_neg["answer"]))
-
-        optimizer.zero_grad()
-        scores = model(batch)
-        n_correct += (torch.max(scores, 1)[1].view(batch.label.size()).data == batch.label.data).sum()
-        n_total += batch.batch_size
-        train_acc = 100. * n_correct / n_total
-
-        '''
-        debug code
-        '''
-        # cmp = output[:, 0] <= output[:, 1]
-        # cmp = np.array(cmp.data.cpu().numpy(), dtype=bool)
-        # # batch_near_list = np.array(batch_near_list)
-        # batch_aid = np.array(batch_aid)
-        # batch_qid = np.array(batch_qid)
-        # qlist = batch_qid[cmp]
-        # alist = batch_aid[cmp]
-        # nlist = batch_near_list[cmp]
-        # for k in range(len(batch_qid[cmp])):
-        #     pair = (index2qid[qlist[k]], index2aid[alist[k]], index2aid[nlist[k]])
-        #     if pair in false_samples:
-        #         false_samples[pair] += 1
-        #     else:
-        #         false_samples[pair] = 1
-
-        # cmp = output[:, 0] > output[:, 1]
-        # acc += sum(cmp.data.cpu().numpy())
-        # tot += true_batch_size
+                if qid_i not in qid_label_dict:
+                    qid_label_dict[qid_i] = []
+                qid_label_dict[qid_i].append(batch.label[i])
 
 
-        # loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
-        loss = criterion(scores, batch.label)
-        # loss_num = loss.data.numpy()[0]
-        loss.backward()
-        optimizer.step()
+                if label_i == 2:
+                    qid_correct_ans_dict[qid_i] = qid_correct_ans_dict.get(qid_i, 0) + 1
+    
 
-        # Evaluate performance on validation set
-        if iterations % args.dev_every == 1:
-            # switch model into evaluation mode
-            model.eval()
-            dev_iter.init_epoch()
-            n_dev_correct = 0
-            dev_losses = []
-            instance = []
-            for dev_batch_idx, dev_batch in enumerate(dev_iter):
-                qid_array = index2qid[np.transpose(dev_batch.qid.cpu().data.numpy())]
-                true_label_array = index2label[np.transpose(dev_batch.label.cpu().data.numpy())]
+    elif epoch >=1:
+        # for batch_idx, batch in enumerate(iter(train_iter)):
+        for qid in qid_questions_dict:
+            batch = get_qid_batch(qid, qid_questions_dict, qid_anwers_dict, qid_ext_feat_dict, qid_label_dict)
+            iterations += 1
+            loss_num = 0
+            model.train()
+            optimizer.zero_grad()
+            scores = model(batch)
+            # print(scores)
+            # print(torch.max(scores, 1))
+            # exit(0)
 
-                scores = model(dev_batch)
-                n_dev_correct += (torch.max(scores, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
-                dev_loss = criterion(scores, dev_batch.label)
-                dev_losses.append(dev_loss.data[0])
-                index_label = np.transpose(torch.max(scores, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
-                label_array = index2label[index_label]
-                # get the relevance scores
-                score_array = scores[:, 2].cpu().data.numpy()
-                for i in range(dev_batch.batch_size):
-                    this_qid, predicted_label, score, gold_label = qid_array[i], label_array[i], score_array[i], true_label_array[i]
-                    instance.append((this_qid, predicted_label, score, gold_label))
+            n_correct += (torch.max(scores, 1)[1].view(batch.label.size()).data == batch.label.data).sum()
+            n_total += batch.batch_size
+            train_acc = 100. * n_correct / n_total
+
+          
+            # loss = marginRankingLoss(output[:, 0], output[:, 1], torch.autograd.Variable(torch.ones(1)))
+            loss = criterion(scores, batch.label.view(-1))
+            # loss_num = loss.data.numpy()[0]
+            loss.backward()
+            optimizer.step()
+
+            # Evaluate performance on validation set
+            if iterations % args.dev_every == 1:
+                # switch model into evaluation mode
+                model.eval()
+                dev_iter.init_epoch()
+                n_dev_correct = 0
+                dev_losses = []
+                instance = []
+                for dev_batch_idx, dev_batch in enumerate(dev_iter):
+                    qid_array = index2qid[np.transpose(dev_batch.qid.cpu().data.numpy())]
+                    true_label_array = index2label[np.transpose(dev_batch.label.cpu().data.numpy())]
+
+                    scores = model(dev_batch)
+                    n_dev_correct += (torch.max(scores, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
+                    dev_loss = criterion(scores, dev_batch.label)
+                    dev_losses.append(dev_loss.data[0])
+                    index_label = np.transpose(torch.max(scores, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
+                    label_array = index2label[index_label]
+                    # get the relevance scores
+                    score_array = scores[:, 2].cpu().data.numpy()
+                    for i in range(dev_batch.batch_size):
+                        this_qid, predicted_label, score, gold_label = qid_array[i], label_array[i], score_array[i], true_label_array[i]
+                        instance.append((this_qid, predicted_label, score, gold_label))
 
 
-            dev_map, dev_mrr = evaluate(instance, 'valid','trecqa', config.mode)
-            print(dev_log_template.format(time.time() - start,
-                                          epoch, iterations, 1 + batch_idx, len(train_iter),
-                                          100. * (1 + batch_idx) / len(train_iter), loss.data[0],
-                                          sum(dev_losses) / len(dev_losses), train_acc, dev_map))
+                dev_map, dev_mrr = evaluate(instance, 'valid','trecqa', config.mode)
+                print(dev_log_template.format(time.time() - start,
+                                              epoch, iterations, 1 + batch_idx, len(train_iter),
+                                              100. * (1 + batch_idx) / len(train_iter), loss.data[0],
+                                              sum(dev_losses) / len(dev_losses), train_acc, dev_map, dev_mrr))
 
-            # Update validation results
-            if dev_map > best_dev_map:
-                iters_not_improved = 0
-                best_dev_map = dev_map
-                snapshot_path = os.path.join(args.save_path, args.dataset, args.mode+'_best_model.pt')
-                torch.save(model, snapshot_path)
-            else:
-                iters_not_improved += 1
-                if iters_not_improved >= args.patience:
-                    early_stop = True
-                    break
+                # Update validation results
+                if dev_map > best_dev_map:
+                    iters_not_improved = 0
+                    best_dev_map = dev_map
+                    snapshot_path = os.path.join(args.save_path, args.dataset, args.mode+'_best_model.pt')
+                    torch.save(model, snapshot_path)
+                else:
+                    iters_not_improved += 1
+                    if iters_not_improved >= args.patience:
+                        early_stop = True
+                        break
+    epoch += 1
 
-        # if iterations % args.log_every == 1:
-        #     # print progress message
-        #     print(log_template.format(time.time() - start,
-        #                               epoch, iterations, 1 + batch_idx, len(train_iter),
-        #                               100. * (1 + batch_idx) / len(train_iter), loss.data[0]))
-            
+      

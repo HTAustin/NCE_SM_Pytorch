@@ -81,17 +81,20 @@ def predict(test_mode, dataset_iter):
         qid_array = index2qid[np.transpose(dev_batch.qid.cpu().data.numpy())]
         true_label_array = index2label[np.transpose(dev_batch.label.cpu().data.numpy())]
 
-        output = model.convModel(dev_batch)
+        scores = model(dev_batch)
+        index_label = np.transpose(torch.max(scores, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
+        label_array = index2label[index_label]
 
-        scores = model.linearLayer(output)
-        score_array = scores.cpu().data.numpy().reshape(-1)
+        # scores = model.linearLayer(output)
+        score_array = scores[:,2].cpu().data.numpy().reshape(-1)
 
         # print and write the result
         for i in range(dev_batch.batch_size):
-            this_qid, score, gold_label = qid_array[i], score_array[i], true_label_array[i]
-            instance.append((this_qid, score, gold_label))
+            this_qid, predicted_label, score, gold_label = qid_array[i], label_array[i], score_array[i], \
+                                                           true_label_array[i]
+            instance.append((this_qid,predicted_label, score, gold_label))
 
-    dev_map, dev_mrr = evaluate(instance, test_mode, config.mode)
+    dev_map, dev_mrr = evaluate(instance, 'TRECQA',test_mode, config.mode)
     print(dev_map, dev_mrr)
 
 # Run the model on the dev set
